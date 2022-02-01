@@ -25,16 +25,16 @@ import java.util.Map;
 import static com.google.common.collect.Sets.newHashSet;
 
 public class TopicAttributes {
-    public static final EnumAttribute QUEUE_TYPE_ATTRIBUTE = new EnumAttribute(
-            "queue.type",
-            false,
-            newHashSet("BatchCQ", "SimpleCQ"),
-            "SimpleCQ"
-    );
+    public static final EnumAttribute QUEUE_TYPE_ATTRIBUTE =
+        new EnumAttribute("queue.type", false, newHashSet("BatchCQ", "SimpleCQ"), "SimpleCQ");
+    public static final EnumAttribute DELETE_POLICY_ATTRIBUTE =
+        new EnumAttribute("delete.policy", false, newHashSet("NORMAL", "COMPACTION"), "NORMAL");
+
     public static final Map<String, Attribute> ALL;
 
     static {
         ALL = new HashMap<>();
         ALL.put(QUEUE_TYPE_ATTRIBUTE.getName(), QUEUE_TYPE_ATTRIBUTE);
+        ALL.put(DELETE_POLICY_ATTRIBUTE.getName(), DELETE_POLICY_ATTRIBUTE);
     }
 }
