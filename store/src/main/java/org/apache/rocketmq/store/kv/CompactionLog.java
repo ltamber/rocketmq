@@ -65,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.apache.rocketmq.store.CommitLog.BLANK_MAGIC_CODE;
+import static org.apache.rocketmq.common.message.MessageDecoder.BLANK_MAGIC_CODE;
 
 public class CompactionLog {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -120,7 +120,7 @@ public class CompactionLog {
                 new PutMessageSpinLock();
         this.endMsgCallback = new CompactionAppendEndMsgCallback();
         this.state = new AtomicReference<>(State.INITIALIZING);
-//        this.load();
+        // TODO: join the isr ?
         log.info("CompactionLog {}:{} init completed.", topic, queueId);
     }
 
@@ -234,7 +234,7 @@ public class CompactionLog {
 
             try {
                 // doCompaction with current and replicating
-                compactAndReplace(new FileList(toCompactFiles, newFiles));
+                compactAndReplace(new ProcessFileList(toCompactFiles, newFiles));
             } catch (Throwable e) {
                 log.error("do merge replicating and current exception: ", e);
             }
@@ -554,7 +554,7 @@ public class CompactionLog {
         }
     }
 
-    FileList getCompactionFile() {
+    ProcessFileList getCompactionFile() {
         List<MappedFile> mappedFileList = Lists.newArrayList(getLog().getMappedFiles());
         if (mappedFileList.size() < 2) {
             return null;
@@ -576,10 +576,10 @@ public class CompactionLog {
             return null;
         }
 
-        return new FileList(toCompactFiles, newFiles);
+        return new ProcessFileList(toCompactFiles, newFiles);
     }
 
-    void compactAndReplace(FileList compactFiles) throws Throwable {
+    void compactAndReplace(ProcessFileList compactFiles) throws Throwable {
         if (compactFiles == null || compactFiles.isEmpty()) {
             return;
         }
@@ -1084,10 +1084,10 @@ public class CompactionLog {
         COMPACTING,
     }
 
-    static class FileList {
+    static class ProcessFileList {
         List<MappedFile> newFiles;
         List<MappedFile> toCompactFiles;
-        public FileList(List<MappedFile> toCompactFiles, List<MappedFile> newFiles) {
+        public ProcessFileList(List<MappedFile> toCompactFiles, List<MappedFile> newFiles) {
             this.toCompactFiles = toCompactFiles;
             this.newFiles = newFiles;
         }

@@ -50,6 +50,8 @@ public class MessageStoreConfig {
 
     private int compactionThreadNum = 0;
 
+    private boolean enableCompaction = true;
+
     // ConsumeQueue file size,default is 30W
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
     // enable consume queue ext
@@ -376,6 +378,14 @@ public class MessageStoreConfig {
 
     public void setCompactionThreadNum(int compactionThreadNum) {
         this.compactionThreadNum = compactionThreadNum;
+    }
+
+    public boolean isEnableCompaction() {
+        return enableCompaction;
+    }
+
+    public void setEnableCompaction(boolean enableCompaction) {
+        this.enableCompaction = enableCompaction;
     }
 
     public int getMappedFileSizeCommitLog() {

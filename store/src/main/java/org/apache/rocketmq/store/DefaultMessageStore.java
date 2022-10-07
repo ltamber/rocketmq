@@ -103,8 +103,6 @@ public class DefaultMessageStore implements MessageStore {
     private final MessageStoreConfig messageStoreConfig;
     // CommitLog
     private final CommitLog commitLog;
-    // CompactionLog
-    private final CompactionStore compactionStore;
 
     private final ConsumeQueueStore consumeQueueStore;
 
@@ -118,13 +116,16 @@ public class DefaultMessageStore implements MessageStore {
 
     private final IndexService indexService;
 
-    private final CompactionService compactionService;
-
     private final AllocateMappedFileService allocateMappedFileService;
 
     private ReputMessageService reputMessageService;
 
     private HAService haService;
+
+    // CompactionLog
+    private CompactionStore compactionStore;
+
+    private CompactionService compactionService;
 
     private final StoreStatsService storeStatsService;
 
@@ -189,7 +190,6 @@ public class DefaultMessageStore implements MessageStore {
             this.commitLog = new CommitLog(this);
         }
 
-        this.compactionStore = new CompactionStore(this);
         this.consumeQueueStore = new ConsumeQueueStore(this, this.messageStoreConfig);
 
         this.flushConsumeQueueService = new FlushConsumeQueueService();
@@ -198,7 +198,6 @@ public class DefaultMessageStore implements MessageStore {
         this.correctLogicOffsetService = new CorrectLogicOffsetService();
         this.storeStatsService = new StoreStatsService(getBrokerIdentity());
         this.indexService = new IndexService(this);
-        this.compactionService = new CompactionService(commitLog, this, compactionStore);
         if (!messageStoreConfig.isEnableDLegerCommitLog() && !this.messageStoreConfig.isDuplicationEnable()) {
             this.haService = ServiceProvider.loadClass(ServiceProvider.HA_SERVICE_ID, HAService.class);
             if (null == this.haService) {
@@ -217,7 +216,11 @@ public class DefaultMessageStore implements MessageStore {
         this.dispatcherList = new LinkedList<>();
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
-        this.dispatcherList.addLast(new CommitLogDispatcherCompaction(compactionService));
+        if (messageStoreConfig.isEnableCompaction()) {
+            this.compactionStore = new CompactionStore(this);
+            this.compactionService = new CompactionService(commitLog, this, compactionStore);
+            this.dispatcherList.addLast(new CommitLogDispatcherCompaction(compactionService));
+        }
 
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
         UtilAll.ensureDirOK(file.getParent());
@@ -282,7 +285,9 @@ public class DefaultMessageStore implements MessageStore {
             // load Consume Queue
             result = result && this.consumeQueueStore.load();
 
-            result = result && this.compactionService.load(lastExitOK);
+            if (messageStoreConfig.isEnableCompaction()) {
+                result = result && this.compactionService.load(lastExitOK);
+            }
 
             if (result) {
                 this.storeCheckpoint =
@@ -349,7 +354,9 @@ public class DefaultMessageStore implements MessageStore {
 
         this.flushConsumeQueueService.start();
         this.commitLog.start();
-        this.compactionService.start();
+        if (messageStoreConfig.isEnableCompaction() && this.compactionService != null) {
+            this.compactionService.start();
+        }
         this.storeStatsService.start();
 
         if (this.haService != null) {
@@ -434,7 +441,9 @@ public class DefaultMessageStore implements MessageStore {
 
             this.storeStatsService.shutdown();
             this.indexService.shutdown();
-            this.compactionService.shutdown();
+            if (this.compactionService != null) {
+                this.compactionService.shutdown();
+            }
             this.commitLog.shutdown();
             this.reputMessageService.shutdown();
             this.flushConsumeQueueService.shutdown();
@@ -706,7 +715,7 @@ public class DefaultMessageStore implements MessageStore {
         Optional<TopicConfig> topicConfig = getTopicConfig(topic);
         DeletePolicy policy = DeletePolicyUtils.getDeletePolicy(topicConfig);
         //check request topic flag
-        if (Objects.equals(policy, DeletePolicy.COMPACTION)) {
+        if (Objects.equals(policy, DeletePolicy.COMPACTION) && messageStoreConfig.isEnableCompaction()) {
             return compactionStore.getMessage(group, topic, queueId, offset, maxMsgNums, maxTotalMsgSize);
         } // else skip
 
@@ -2359,7 +2368,9 @@ public class DefaultMessageStore implements MessageStore {
                 }
             }
 
-            compactionStore.flushCQ(flushConsumeQueueLeastPages);
+            if (messageStoreConfig.isEnableCompaction()) {
+                compactionStore.flushCQ(flushConsumeQueueLeastPages);
+            }
 
             if (0 == flushConsumeQueueLeastPages) {
                 if (logicsMsgTimestamp > 0) {
